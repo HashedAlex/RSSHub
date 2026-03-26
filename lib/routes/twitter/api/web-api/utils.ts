@@ -93,31 +93,43 @@ export const twitterGot = async (
             .map((item) => [item?.key, item?.value])
     );
 
-    const response = await ofetch.raw(requestUrl, {
-        retry: 0,
-        dispatcher: agent,
-        headers: {
-            authority: 'x.com',
-            accept: '*/*',
-            'accept-language': 'en-US,en;q=0.9',
-            authorization: bearerToken,
-            'cache-control': 'no-cache',
-            'content-type': 'application/json',
-            dnt: '1',
-            pragma: 'no-cache',
-            referer: 'https://x.com/',
-            'x-twitter-active-user': 'yes',
-            'x-twitter-client-language': 'en',
-            'x-csrf-token': jsonCookie.ct0,
-            ...(token
-                ? {
-                      'x-twitter-auth-type': 'OAuth2Session',
-                  }
-                : {
-                      'x-guest-token': jsonCookie.gt,
-                  }),
-        },
-    });
+    let response;
+    try {
+        response = await ofetch.raw(requestUrl, {
+            retry: 0,
+            dispatcher: agent,
+            headers: {
+                authority: 'x.com',
+                accept: '*/*',
+                'accept-language': 'en-US,en;q=0.9',
+                authorization: bearerToken,
+                'cache-control': 'no-cache',
+                'content-type': 'application/json',
+                dnt: '1',
+                pragma: 'no-cache',
+                referer: 'https://x.com/',
+                'x-twitter-active-user': 'yes',
+                'x-twitter-client-language': 'en',
+                'x-csrf-token': jsonCookie.ct0,
+                ...(token
+                    ? {
+                          'x-twitter-auth-type': 'OAuth2Session',
+                      }
+                    : {
+                          'x-guest-token': jsonCookie.gt,
+                      }),
+            },
+        });
+    } catch (error: any) {
+        const status = error?.response?.status;
+        if (status === 404) {
+            throw new Error(
+                'X web endpoint changed or is blocked. This template is a self-use experimental scraper based on undocumented X web APIs, so it may break at any time. Try updating the query ids or configure TWITTER_THIRD_PARTY_API.'
+            );
+        }
+
+        throw error;
+    }
 
     if (response.status >= 400) {
         logger.warn(`Twitter request failed: ${response.status} ${requestUrl}`);

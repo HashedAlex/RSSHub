@@ -13,6 +13,9 @@ const handler: Handler = (ctx) => {
             '/twitter/tweet/:id/status/:status',
             '/twitter/keyword/:keyword',
             '',
+            'Mode: self-use experimental scraper',
+            'This project relies on undocumented X web endpoints and may break at any time.',
+            '',
             'Configure TWITTER_AUTH_TOKEN or TWITTER_THIRD_PARTY_API before using it.',
         ].join('\n')
     );

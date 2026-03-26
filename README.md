@@ -2,6 +2,9 @@
 
 一个已经裁剪过的 RSSHub 风格模板，只保留了抓取 Twitter/X 的核心能力，适合直接部署到 Railway。
 
+这是一个仅自用、实验性质的模板。
+当前实现依赖 X 的非公开 Web 接口，不适合作为稳定生产方案，也不保证长期可用。
+
 ## 保留的路由
 
 - `/twitter/user/:id`
@@ -36,6 +39,9 @@ npm start
 ```text
 TWITTER_AUTH_TOKEN=token1,token2
 ```
+
+如果你配置的是 `TWITTER_AUTH_TOKEN`，实际走的是 X Web 抓取方案。
+这条链路依赖未公开接口，可能因为 query id 变化、风控、登录态失效而随时中断。
 
 可选变量：
 
@@ -76,3 +82,9 @@ TWITTER_AUTH_TOKEN=token1,token2
 - Redis / Sentry / OpenTelemetry / 多代理等重型模块
 
 如果你后面只想继续围绕 Twitter 扩展，这个仓库现在更适合作为干净底座。
+
+## 风险提示
+
+- 这是自用实验版，不是稳定的生产抓取器
+- X 网页内部接口变更后，可能直接返回 404、401 或空数据
+- 更稳的替代方式是配置 `TWITTER_THIRD_PARTY_API`
