@@ -1,0 +1,33 @@
+{
+    "name": "rsshub-twitter-lite",
+    "version": "0.1.0",
+    "private": true,
+    "description": "A lightweight RSSHub-style Twitter/X RSS template for Railway",
+    "type": "module",
+    "scripts": {
+        "build": "echo 'No build step required'",
+        "dev": "tsx watch lib/index.ts",
+        "start": "tsx lib/index.ts",
+        "typecheck": "tsc --noEmit"
+    },
+    "dependencies": {
+        "@hono/node-server": "1.19.11",
+        "dayjs": "1.11.20",
+        "hono": "4.12.8",
+        "http-cookie-agent": "7.0.3",
+        "lru-cache": "11.2.7",
+        "ofetch": "1.5.1",
+        "query-string": "9.3.1",
+        "tough-cookie": "6.0.1",
+        "tsx": "4.21.0",
+        "undici": "7.24.6"
+    },
+    "devDependencies": {
+        "@types/node": "24.3.0",
+        "typescript": "5.9.3"
+    },
+    "engines": {
+        "node": "22.x"
+    },
+    "packageManager": "npm@10"
+}
