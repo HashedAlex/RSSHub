@@ -1,13 +1,13 @@
 const baseUrl = 'https://x.com/i/api';
 
 const graphQLEndpointsPlain = [
-    '/graphql/E3opETHurmVJflFsUBVuUQ/UserTweets',
-    '/graphql/Yka-W8dz7RaEuQNkroPkYw/UserByScreenName',
-    '/graphql/bt4TKuFz4T7Ckk-VvQVSow/UserTweetsAndReplies',
-    '/graphql/dexO_2tohK86JDudXXG3Yw/UserMedia',
-    '/graphql/Qw77dDjp9xCpUY-AXwt-yQ/UserByRestId',
-    '/graphql/UN1i3zUiCWa-6r-Uaho4fw/SearchTimeline',
-    '/graphql/QuBlQ6SxNAQCt6-kBiCXCQ/TweetDetail',
+    '/graphql/E8Wq-_jFSaU7hxVcuOPR9g/UserTweets',
+    '/graphql/ck5KkZ8t5cOmoLssopN99Q/UserByScreenName',
+    '/graphql/-O3QOHrVn1aOm_cF5wyTCQ/UserTweetsAndReplies',
+    '/graphql/jCRhbOzdgOHp6u9H4g2tEg/UserMedia',
+    '/graphql/8r5oa_2vD0WkhIAOkY4TTA/UserByRestId',
+    '/graphql/4fpceYZ6-YQCx_JSl_Cn_A/SearchTimeline',
+    '/graphql/iFEr5AcP121Og4wx9Yqo3w/TweetDetail',
 ];
 
 const gqlMap = Object.fromEntries(graphQLEndpointsPlain.map((endpoint) => [endpoint.split('/')[3], endpoint]));
