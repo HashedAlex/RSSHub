@@ -35,44 +35,6 @@ const initDynamicQueryIds = async () => {
     }
 };
 
-const token2Cookie = async (token?: string) => {
-    const cacheKey = `twitter:cookie:${token || 'guest'}`;
-    const cached = await cache.get(cacheKey);
-
-    if (cached) {
-        return cached;
-    }
-
-    const jar = new CookieJar();
-
-    if (token) {
-        await jar.setCookie(`auth_token=${token}`, 'https://x.com');
-    }
-
-    const agent = proxy.proxyUri
-        ? new ProxyAgent({
-              factory: (origin, opts) => new Client(origin as string, opts).compose(httpCookie({ jar })),
-              uri: proxy.proxyUri,
-          })
-        : new CookieAgent({ cookies: { jar } });
-
-    const bootstrapUrl = token ? 'https://x.com' : 'https://x.com/narendramodi?mx=2';
-    const data = await ofetch(bootstrapUrl, {
-        dispatcher: agent,
-    });
-
-    if (!token) {
-        const gt = typeof data === 'string' ? data.match(/document\.cookie="gt=(\d+)/)?.[1] : undefined;
-        if (gt) {
-            jar.setCookieSync(`gt=${gt}`, 'https://x.com');
-        }
-    }
-
-    const cookie = JSON.stringify(jar.serializeSync());
-    await cache.set(cacheKey, cookie, config.cache.contentExpire);
-    return cookie;
-};
-
 const getAuthToken = () => {
     if (!config.twitter.authToken?.length) {
         return undefined;
@@ -97,9 +59,14 @@ export const twitterGot = async (
         throw new ConfigNotFoundError('No valid TWITTER_AUTH_TOKEN found');
     }
 
-    const requestUrl = `${url}?${queryString.stringify(params)}`;
-    const serializedCookie = await token2Cookie(token);
-    const jar = CookieJar.deserializeSync(JSON.parse(serializedCookie));
+    // Create ONE cookie jar and agent for both bootstrap and API call
+    // This ensures both requests go through the same proxy IP
+    const jar = new CookieJar();
+
+    if (token) {
+        await jar.setCookie(`auth_token=${token}`, 'https://x.com');
+    }
+
     const agent = proxy.proxyUri
         ? new ProxyAgent({
               factory: (origin, opts) => new Client(origin as string, opts).compose(httpCookie({ jar })),
@@ -107,6 +74,23 @@ export const twitterGot = async (
           })
         : new CookieAgent({ cookies: { jar } });
 
+    // Bootstrap: fetch x.com to get ct0 csrf token (same agent = same IP)
+    const bootstrapUrl = token ? 'https://x.com' : 'https://x.com/narendramodi?mx=2';
+    const bootstrapData = await ofetch(bootstrapUrl, {
+        dispatcher: agent,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
+        },
+    });
+
+    if (!token) {
+        const gt = typeof bootstrapData === 'string' ? bootstrapData.match(/document\.cookie="gt=(\d+)/)?.[1] : undefined;
+        if (gt) {
+            jar.setCookieSync(`gt=${gt}`, 'https://x.com');
+        }
+    }
+
+    // Extract cookies for headers
     const jsonCookie = Object.fromEntries(
         jar
             .getCookieStringSync(url)
@@ -116,12 +100,17 @@ export const twitterGot = async (
             .map((item) => [item?.key, item?.value])
     );
 
+    logger.info(`Bootstrap OK. ct0=${jsonCookie.ct0 ? 'present' : 'missing'}, auth=${token ? 'yes' : 'no'}`);
+
+    // API call: same agent = same proxy IP as bootstrap
+    const requestUrl = `${url}?${queryString.stringify(params)}`;
     let response;
     try {
         response = await ofetch.raw(requestUrl, {
             retry: 0,
             dispatcher: agent,
             headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36',
                 authority: 'x.com',
                 accept: '*/*',
                 'accept-language': 'en-US,en;q=0.9',
@@ -162,7 +151,6 @@ export const twitterGot = async (
         logger.warn(`Twitter request failed: ${response.status} ${requestUrl}`);
     }
 
-    await cache.set(`twitter:cookie:${token || 'guest'}`, JSON.stringify(jar.serializeSync()), config.cache.contentExpire);
     return response._data;
 };
 
