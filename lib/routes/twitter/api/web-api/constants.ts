@@ -1,6 +1,7 @@
 const baseUrl = 'https://x.com/i/api';
 
-const graphQLEndpointsPlain = [
+// Fallback static query IDs (may be outdated)
+const fallbackEndpoints = [
     '/graphql/HeWHY26ItCfUmm1e6ITjeA/UserTweets',
     '/graphql/1VOOyvKkiI3FMmkeDNxM9A/UserByScreenName',
     '/graphql/OAx9yEcW3JA9bPo63pcYlA/UserTweetsAndReplies',
@@ -10,7 +11,16 @@ const graphQLEndpointsPlain = [
     '/graphql/_8aYOgEDz35BrBcBal1-_w/TweetDetail',
 ];
 
-const gqlMap = Object.fromEntries(graphQLEndpointsPlain.map((endpoint) => [endpoint.split('/')[3], endpoint]));
+const fallbackGqlMap = Object.fromEntries(fallbackEndpoints.map((endpoint) => [endpoint.split('/')[3], endpoint]));
+
+// Mutable gqlMap that can be updated with dynamic query IDs
+let gqlMap: Record<string, string> = { ...fallbackGqlMap };
+
+const updateGqlMap = (dynamicMap: Record<string, string>) => {
+    for (const [endpoint, path] of Object.entries(dynamicMap)) {
+        gqlMap[endpoint] = path;
+    }
+};
 
 const thirdPartySupportedAPI = ['UserByScreenName', 'UserByRestId', 'UserTweets', 'UserTweetsAndReplies', 'SearchTimeline', 'UserMedia'];
 
@@ -81,4 +91,4 @@ const gqlFeatures = {
 
 const bearerToken = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
 
-export { baseUrl, bearerToken, gqlFeatures, gqlMap, thirdPartySupportedAPI };
+export { baseUrl, bearerToken, gqlFeatures, gqlMap, thirdPartySupportedAPI, updateGqlMap };

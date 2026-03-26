@@ -3,7 +3,7 @@ import cache from '@/utils/cache';
 import ofetch from '@/utils/ofetch';
 import { config } from '@/config';
 
-import { baseUrl, gqlFeatures, gqlMap, thirdPartySupportedAPI } from './constants';
+import { baseUrl, gqlFeatures, gqlMap } from './constants';
 import { gatherLegacyFromData, paginationTweets, twitterGot } from './utils';
 
 const getUserData = (id: string) =>
