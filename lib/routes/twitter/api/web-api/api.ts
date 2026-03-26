@@ -19,11 +19,12 @@ const getUserData = (id: string) =>
                   })
                 : JSON.stringify({
                       screen_name: id,
-                      withSafetyModeUserFields: true,
+                      withGrokTranslatedBio: false,
                   }),
             features: JSON.stringify(id.startsWith('+') ? gqlFeatures.UserByRestId : gqlFeatures.UserByScreenName),
             fieldToggles: JSON.stringify({
-                withAuxiliaryUserLabels: false,
+                withPayments: false,
+                withAuxiliaryUserLabels: true,
             }),
         };
 
