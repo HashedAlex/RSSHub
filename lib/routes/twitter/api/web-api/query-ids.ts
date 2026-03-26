@@ -8,7 +8,6 @@ import { Client, ProxyAgent } from 'undici';
 
 const ENDPOINTS_NEEDED = ['UserTweets', 'UserByScreenName', 'UserTweetsAndReplies', 'UserMedia', 'UserByRestId', 'SearchTimeline', 'TweetDetail'];
 
-// Cache for dynamic query IDs
 let dynamicGqlMap: Record<string, string> | null = null;
 let fetchPromise: Promise<Record<string, string>> | null = null;
 
@@ -24,21 +23,12 @@ const makeAgent = () => {
 
 const extractJsBundleUrls = (html: string): string[] => {
     const urls: string[] = [];
-    // Match script src attributes pointing to JS files on abs.twimg.com
-    const scriptRegex = /src=["'](https:\/\/abs\.twimg\.com\/responsive-web\/client-web[^"']*\.js)["']/g;
+    // Match all script src attributes pointing to .js files
+    const scriptRegex = /src=["'](https?:\/\/[^"']*\.js)["']/g;
     let match;
     while ((match = scriptRegex.exec(html)) !== null) {
         urls.push(match[1]);
     }
-
-    // Also try generic script tags with .js
-    const genericRegex = /src=["'](https:\/\/[^"']*(?:main|client|api|endpoints)[^"']*\.js)["']/g;
-    while ((match = genericRegex.exec(html)) !== null) {
-        if (!urls.includes(match[1])) {
-            urls.push(match[1]);
-        }
-    }
-
     return urls;
 };
 
@@ -47,35 +37,31 @@ const extractQueryIds = (jsContent: string): Record<string, string> => {
 
     for (const endpoint of ENDPOINTS_NEEDED) {
         // Pattern 1: queryId:"xxx",operationName:"EndpointName"
-        const pattern1 = new RegExp(`queryId:"([^"]+)",operationName:"${endpoint}"`, 'g');
-        const match1 = pattern1.exec(jsContent);
-        if (match1) {
-            result[endpoint] = `/graphql/${match1[1]}/${endpoint}`;
-            continue;
-        }
+        const p1 = new RegExp(`queryId:"([^"]+)",operationName:"${endpoint}"`);
+        const m1 = p1.exec(jsContent);
+        if (m1) { result[endpoint] = `/graphql/${m1[1]}/${endpoint}`; continue; }
 
-        // Pattern 2: {queryId:"xxx",operationName:"EndpointName",operationType:"query"}
-        const pattern2 = new RegExp(`\\{queryId:"([^"]+)",operationName:"${endpoint}"`, 'g');
-        const match2 = pattern2.exec(jsContent);
-        if (match2) {
-            result[endpoint] = `/graphql/${match2[1]}/${endpoint}`;
-            continue;
-        }
+        // Pattern 2: operationName:"EndpointName",queryId:"xxx" (reversed)
+        const p2 = new RegExp(`operationName:"${endpoint}"[^}]{0,50}queryId:"([^"]+)"`);
+        const m2 = p2.exec(jsContent);
+        if (m2) { result[endpoint] = `/graphql/${m2[1]}/${endpoint}`; continue; }
 
-        // Pattern 3: operationName:"EndpointName"...queryId:"xxx" (reversed order)
-        const pattern3 = new RegExp(`operationName:"${endpoint}"[^}]*queryId:"([^"]+)"`, 'g');
-        const match3 = pattern3.exec(jsContent);
-        if (match3) {
-            result[endpoint] = `/graphql/${match3[1]}/${endpoint}`;
-            continue;
-        }
+        // Pattern 3: queryId:"xxx",...operationName:"EndpointName" with gap
+        const p3 = new RegExp(`queryId:"([^"]+)"[^}]{0,100}operationName:"${endpoint}"`);
+        const m3 = p3.exec(jsContent);
+        if (m3) { result[endpoint] = `/graphql/${m3[1]}/${endpoint}`; continue; }
 
-        // Pattern 4: e.queryId="xxx"...e.operationName="EndpointName" or similar assignment patterns
-        const pattern4 = new RegExp(`/graphql/([A-Za-z0-9_-]+)/${endpoint}`, 'g');
-        const match4 = pattern4.exec(jsContent);
-        if (match4) {
-            result[endpoint] = `/graphql/${match4[1]}/${endpoint}`;
-        }
+        // Pattern 4: endpoint in URL path
+        const p4 = new RegExp(`/graphql/([A-Za-z0-9_-]+)/${endpoint}[^A-Za-z]`);
+        const m4 = p4.exec(jsContent);
+        if (m4) { result[endpoint] = `/graphql/${m4[1]}/${endpoint}`; continue; }
+
+        // Pattern 5: e="xxx"...operationName:"EndpointName" or similar minified patterns
+        // In minified JS, it may look like: {queryId:"xxx",operationName:"EndpointName",operationType:"query"}
+        // Or with single quotes or template format
+        const p5 = new RegExp(`["']([A-Za-z0-9_-]{20,})["'][^}]{0,30}["']${endpoint}["']`);
+        const m5 = p5.exec(jsContent);
+        if (m5) { result[endpoint] = `/graphql/${m5[1]}/${endpoint}`; continue; }
     }
 
     return result;
@@ -86,7 +72,6 @@ export const fetchDynamicQueryIds = async (): Promise<Record<string, string>> =>
         return dynamicGqlMap;
     }
 
-    // Deduplicate concurrent fetches
     if (fetchPromise) {
         return fetchPromise;
     }
@@ -111,20 +96,18 @@ export const fetchDynamicQueryIds = async (): Promise<Record<string, string>> =>
             }
 
             const bundleUrls = extractJsBundleUrls(html);
-            logger.info(`Found ${bundleUrls.length} JS bundle URLs`);
+            logger.info(`Found ${bundleUrls.length} JS bundle URLs: ${bundleUrls.slice(0, 5).join(', ')}`);
 
             if (bundleUrls.length === 0) {
-                // Log a snippet of the HTML for debugging
-                logger.warn(`No JS bundles found. HTML snippet: ${html.substring(0, 500)}`);
+                logger.warn(`No JS bundles found. HTML snippet: ${html.substring(0, 1000)}`);
                 return {};
             }
 
             const allIds: Record<string, string> = {};
 
-            // Fetch bundles in parallel (limit to first 10 to avoid too many requests)
-            const bundlesToFetch = bundleUrls.slice(0, 10);
+            // Fetch ALL bundles - query IDs could be in any of them
             const results = await Promise.allSettled(
-                bundlesToFetch.map(async (url) => {
+                bundleUrls.map(async (url) => {
                     try {
                         const js = await ofetch(url, {
                             dispatcher: makeAgent(),
@@ -133,10 +116,20 @@ export const fetchDynamicQueryIds = async (): Promise<Record<string, string>> =>
                             },
                         });
                         if (typeof js === 'string') {
+                            // Debug: search for any mention of our endpoint names
+                            for (const ep of ENDPOINTS_NEEDED) {
+                                if (js.includes(ep)) {
+                                    // Find context around the endpoint name
+                                    const idx = js.indexOf(ep);
+                                    const snippet = js.substring(Math.max(0, idx - 80), idx + ep.length + 30);
+                                    logger.info(`Found "${ep}" in ${url.split('/').pop()}: ...${snippet}...`);
+                                }
+                            }
                             return extractQueryIds(js);
                         }
                         return {};
-                    } catch {
+                    } catch (e: any) {
+                        logger.warn(`Failed to fetch bundle ${url}: ${e.message}`);
                         return {};
                     }
                 })
@@ -151,7 +144,9 @@ export const fetchDynamicQueryIds = async (): Promise<Record<string, string>> =>
             const found = Object.keys(allIds);
             const missing = ENDPOINTS_NEEDED.filter((e) => !allIds[e]);
 
-            logger.info(`Extracted query IDs: ${found.join(', ')}`);
+            if (found.length > 0) {
+                logger.info(`Extracted query IDs: ${JSON.stringify(allIds)}`);
+            }
             if (missing.length > 0) {
                 logger.warn(`Missing query IDs for: ${missing.join(', ')}`);
             }
