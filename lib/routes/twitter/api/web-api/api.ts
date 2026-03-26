@@ -4,10 +4,13 @@ import ofetch from '@/utils/ofetch';
 import { config } from '@/config';
 
 import { baseUrl, gqlFeatures, gqlMap } from './constants';
-import { gatherLegacyFromData, paginationTweets, twitterGot } from './utils';
+import { ensureDynamicIds, gatherLegacyFromData, paginationTweets, twitterGot } from './utils';
 
 const getUserData = (id: string) =>
     cache.tryGet(`twitter-userdata:${id}`, async () => {
+        // Ensure dynamic query IDs are loaded before using gqlMap
+        await ensureDynamicIds();
+
         const params = {
             variables: id.startsWith('+')
                 ? JSON.stringify({

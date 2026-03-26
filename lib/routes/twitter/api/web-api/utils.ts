@@ -14,6 +14,26 @@ import { baseUrl, bearerToken, gqlFeatures, gqlMap, thirdPartySupportedAPI, upda
 import { fetchDynamicQueryIds } from './query-ids';
 
 let authTokenIndex = 0;
+let dynamicIdsInitialized = false;
+
+const initDynamicQueryIds = async () => {
+    if (dynamicIdsInitialized) {
+        return;
+    }
+    dynamicIdsInitialized = true;
+
+    try {
+        const ids = await fetchDynamicQueryIds();
+        if (Object.keys(ids).length > 0) {
+            updateGqlMap(ids);
+            logger.info(`Dynamic query IDs loaded: ${JSON.stringify(ids)}`);
+        } else {
+            logger.warn('No dynamic query IDs found, using fallback static IDs');
+        }
+    } catch (error: any) {
+        logger.warn(`Failed to load dynamic query IDs: ${error.message}`);
+    }
+};
 
 const token2Cookie = async (token?: string) => {
     const cacheKey = `twitter:cookie:${token || 'guest'}`;
@@ -61,6 +81,8 @@ const getAuthToken = () => {
     const index = authTokenIndex++ % config.twitter.authToken.length;
     return config.twitter.authToken[index];
 };
+
+export const ensureDynamicIds = () => initDynamicQueryIds();
 
 export const twitterGot = async (
     url: string,
@@ -125,7 +147,7 @@ export const twitterGot = async (
         const status = error?.response?.status;
         const responseText = error?.data || error?.response?._data || '';
         logger.error(`Twitter API error: status=${status}, url=${requestUrl.split('?')[0]}, response=${JSON.stringify(responseText).substring(0, 500)}`);
-        logger.debug(`Cookie state: ct0=${jsonCookie.ct0 ? 'present' : 'missing'}, auth_token=${token ? 'present' : 'missing'}, gt=${jsonCookie.gt || 'missing'}`);
+        logger.warn(`Cookie state: ct0=${jsonCookie.ct0 ? 'present' : 'missing'}, auth_token=${token ? 'present' : 'missing'}, gt=${jsonCookie.gt || 'missing'}`);
 
         if (status === 404) {
             throw new Error(
@@ -144,30 +166,7 @@ export const twitterGot = async (
     return response._data;
 };
 
-let dynamicIdsInitialized = false;
-
-const initDynamicQueryIds = async () => {
-    if (dynamicIdsInitialized) {
-        return;
-    }
-    dynamicIdsInitialized = true;
-
-    try {
-        const ids = await fetchDynamicQueryIds();
-        if (Object.keys(ids).length > 0) {
-            updateGqlMap(ids);
-            logger.info(`Dynamic query IDs loaded: ${JSON.stringify(ids)}`);
-        } else {
-            logger.warn('No dynamic query IDs found, using fallback static IDs');
-        }
-    } catch (error: any) {
-        logger.warn(`Failed to load dynamic query IDs: ${error.message}`);
-    }
-};
-
 const fetchData = async (endpoint: string, params: Record<string, any>) => {
-    // Try to load dynamic query IDs on first call
-    await initDynamicQueryIds();
 
     if (config.twitter.thirdPartyApi && thirdPartySupportedAPI.includes(endpoint)) {
         const { data } = await ofetch(`${config.twitter.thirdPartyApi}${gqlMap[endpoint as keyof typeof gqlMap]}`, {
